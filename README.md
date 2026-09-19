@@ -15,11 +15,29 @@ external_components:
 usb_boot_keyboard:
   id: kbd
 
+# Each entry under `button:` is one more button in Home Assistant. Add as many
+# as you like — only the name and the keystroke change.
 button:
   - platform: template
     name: "KVM Port 1"
     on_press:
       - usb_boot_keyboard.send: "ctrl;ctrl;1"
+
+  - platform: template
+    name: "KVM Port 2"
+    on_press:
+      - usb_boot_keyboard.send: "ctrl;ctrl;2"
+
+  - platform: template
+    name: "KVM Port 3"
+    on_press:
+      - usb_boot_keyboard.send: "ctrl;ctrl;3"
+
+  # Nothing here is KVM-specific — any keystroke works.
+  - platform: template
+    name: "Lock the PC"
+    on_press:
+      - usb_boot_keyboard.send: "gui+l"
 ```
 
 ## The device shape, and why it is fixed
