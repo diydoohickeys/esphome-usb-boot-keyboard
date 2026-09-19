@@ -1,0 +1,158 @@
+# A USB boot keyboard on an ESP32-S3, driven from Home Assistant.
+#
+# The four KVM buttons below are an EXAMPLE, not a feature: the component knows
+# nothing about KVMs, ports or `ctrl;ctrl;N`. Every keystroke in this file is
+# yours to change, and the "Custom keystroke" text entity changes without a
+# reflash at all.
+#
+# Copy secrets.yaml.example to secrets.yaml and fill it in before compiling.
+
+substitutions:
+  device_name: usb-boot-keyboard
+  friendly_name: USB Boot Keyboard
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-s3-devkitc-1
+  # State the real flash size. The ESP32-S3 SuperMini is an ESP32-S3FH4R2 with
+  # 4 MB; the devkitc-1 board default writes 8 MB into the image header, which a
+  # web flash copies verbatim and the ROM then rejects.
+  flash_size: 4MB
+  framework:
+    type: esp-idf
+
+external_components:
+  - source: github://diydoohickeys/esphome-usb-boot-keyboard
+    components: [usb_boot_keyboard]
+
+# The USB port IS the keyboard, so there is no USB serial console. Logs go to
+# UART0 (GPIO43/44) and over the API. `hardware_uart: USB_CDC` or
+# `USB_SERIAL_JTAG` here is rejected at config time.
+logger:
+  hardware_uart: UART0
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# Uploads are authenticated with the API encryption key above; an OTA password
+# would cost flash and RAM for no extra protection.
+ota:
+  - platform: esphome
+    encryption: {}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "${friendly_name} Setup"
+    password: !secret ap_password
+
+captive_portal:
+
+usb_boot_keyboard:
+  id: kbd
+  # Defaults shown. Lengthening is safe; shortening is how a KVM hotkey quietly
+  # stops registering, because the sniffer polls slower than the edge.
+  hold_time: 60ms
+  gap_time: 80ms
+  manufacturer: "DIY Doohickeys"
+  product: "USB Boot Keyboard"
+  on_unmount:
+    - logger.log: "USB host went away"
+
+# ---------------------------------------------------------------------------
+# 1. Fixed keystrokes, decided at compile time.
+# ---------------------------------------------------------------------------
+button:
+  - platform: template
+    name: "KVM Port 1"
+    icon: mdi:numeric-1-box-outline
+    on_press:
+      - usb_boot_keyboard.send: "ctrl;ctrl;1"
+
+  - platform: template
+    name: "KVM Port 2"
+    icon: mdi:numeric-2-box-outline
+    on_press:
+      - usb_boot_keyboard.send: "ctrl;ctrl;2"
+
+  - platform: template
+    name: "KVM Port 3"
+    icon: mdi:numeric-3-box-outline
+    on_press:
+      - usb_boot_keyboard.send: "ctrl;ctrl;3"
+
+  - platform: template
+    name: "KVM Port 4"
+    icon: mdi:numeric-4-box-outline
+    on_press:
+      - usb_boot_keyboard.send: "ctrl;ctrl;4"
+
+  # `press` holds a modifier across several taps — the window switcher only
+  # cycles while alt stays down, which a sequence of chords cannot express.
+  - platform: template
+    name: "Switch window (alt-tab-tab)"
+    on_press:
+      - usb_boot_keyboard.press: "alt"
+      - usb_boot_keyboard.send: "tab"
+      - usb_boot_keyboard.send: "tab"
+      - usb_boot_keyboard.release: "alt"
+
+  # `type` sends literal text. It logs only the length, never the content.
+  - platform: template
+    name: "Log in to console"
+    on_press:
+      - usb_boot_keyboard.type: !secret console_username
+      - usb_boot_keyboard.send: "enter"
+
+  # ---------------------------------------------------------------------------
+  # 2. Runtime-editable: change the keystroke in Home Assistant, no reflash.
+  # ---------------------------------------------------------------------------
+  - platform: template
+    name: "Send custom keystroke"
+    icon: mdi:keyboard-outline
+    on_press:
+      - usb_boot_keyboard.send: !lambda "return id(custom_sequence).state;"
+
+text:
+  - platform: template
+    id: custom_sequence
+    name: "Custom keystroke"
+    icon: mdi:keyboard-settings-outline
+    optimistic: true
+    restore_value: true
+    initial_value: "ctrl+alt+t"
+    max_length: 64
+    mode: text
+
+# ---------------------------------------------------------------------------
+# 3. Templated: one action, many keystrokes.
+# ---------------------------------------------------------------------------
+select:
+  - platform: template
+    id: kvm_target
+    name: "KVM target"
+    optimistic: true
+    restore_value: true
+    options:
+      - "Desktop"
+      - "Laptop"
+      - "Server"
+      - "NAS"
+    on_value:
+      - usb_boot_keyboard.send: !lambda |-
+          if (x == "Desktop") return "ctrl;ctrl;1";
+          if (x == "Laptop") return "ctrl;ctrl;2";
+          if (x == "Server") return "ctrl;ctrl;3";
+          return "ctrl;ctrl;4";
+
+binary_sensor:
+  - platform: template
+    name: "USB host attached"
+    device_class: connectivity
+    entity_category: diagnostic
+    lambda: "return id(kbd)->is_mounted();"

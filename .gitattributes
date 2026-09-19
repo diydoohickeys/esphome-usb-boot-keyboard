@@ -1,0 +1,4 @@
+# CI runs on Linux; a CRLF here breaks the workflow shell heredocs.
+* text=auto eol=lf
+*.png binary
+*.bin binary

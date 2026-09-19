@@ -1,0 +1,114 @@
+# The config CI compiles. It is the published example pointed at the local
+# component, with the secrets inlined, plus one use of every action, condition
+# and trigger so that codegen breakage fails the build rather than a user's
+# first flash.
+
+substitutions:
+  device_name: usb-boot-keyboard-ci
+
+esphome:
+  name: ${device_name}
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 4MB
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [usb_boot_keyboard]
+
+logger:
+  hardware_uart: UART0
+
+api:
+  encryption:
+    key: "ZXNwaG9tZS1jaS1rZXktMzItYnl0ZXMtZXhhY3RseSE="
+
+ota:
+  - platform: esphome
+    encryption: {}
+
+wifi:
+  ssid: "ci"
+  password: "ci-password"
+  ap:
+    ssid: "ci-setup"
+    password: "ci-password"
+
+captive_portal:
+
+usb_boot_keyboard:
+  id: kbd
+  hold_time: 60ms
+  gap_time: 80ms
+  vendor_id: 0x303A
+  product_id: 0x4B4D
+  manufacturer: "CI"
+  product: "CI Keyboard"
+  serial: "ci-0001"
+  queue_size: 8
+  on_mount:
+    - logger.log: "mounted"
+  on_unmount:
+    - usb_boot_keyboard.release_all: kbd
+
+button:
+  # Plain shorthand form.
+  - platform: template
+    name: "Send shorthand"
+    on_press:
+      - usb_boot_keyboard.send: "ctrl;ctrl;1"
+
+  # Full form with per-action timing overrides.
+  - platform: template
+    name: "Send full form"
+    on_press:
+      - usb_boot_keyboard.send:
+          id: kbd
+          sequence: "ctrl+shift+f12"
+          hold_time: 90ms
+          gap_time: 120ms
+
+  # Templated sequence, raw keycodes, and the punctuation names.
+  - platform: template
+    name: "Send templated"
+    on_press:
+      - usb_boot_keyboard.send: !lambda 'return "gui+0x3A;semicolon;key(58)";'
+
+  - platform: template
+    name: "Type"
+    on_press:
+      - usb_boot_keyboard.type: "hello world 123 !@#"
+      - usb_boot_keyboard.type:
+          text: !lambda 'return "templated";'
+          hold_time: 20ms
+
+  - platform: template
+    name: "Press and release"
+    on_press:
+      - usb_boot_keyboard.press: "alt"
+      - usb_boot_keyboard.send: "tab"
+      - usb_boot_keyboard.release: "alt"
+      - usb_boot_keyboard.release_all:
+
+  - platform: template
+    name: "Conditional"
+    on_press:
+      - if:
+          condition:
+            usb_boot_keyboard.is_mounted:
+          then:
+            - usb_boot_keyboard.send: "enter"
+          else:
+            - logger.log: "no host"
+
+binary_sensor:
+  - platform: template
+    name: "USB host attached"
+    device_class: connectivity
+    entity_category: diagnostic
+    lambda: "return id(kbd)->is_mounted();"

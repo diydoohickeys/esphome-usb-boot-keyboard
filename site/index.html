@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>USB Boot Keyboard</title>
+    <meta
+      name="description"
+      content="Flash the USB Boot Keyboard firmware to an ESP32-S3 from your browser."
+    />
+    <script
+      type="module"
+      src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"
+    ></script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #16181d;
+        --muted: #5b6270;
+        --line: #e2e5ea;
+        --panel: #f6f7f9;
+        --accent: #0b6bcb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #101216;
+          --fg: #e8eaed;
+          --muted: #9aa2b1;
+          --line: #262a31;
+          --panel: #181b21;
+          --accent: #63a6f0;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 48px 16px 64px;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.6 system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.35em;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin: 2.2em 0 0.6em;
+      }
+      p.lead {
+        color: var(--muted);
+        font-size: 1.05rem;
+        margin-top: 0;
+      }
+      .install {
+        margin: 2rem 0;
+        padding: 1.5rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        text-align: center;
+      }
+      .unsupported {
+        color: var(--muted);
+      }
+      ol,
+      ul {
+        padding-left: 1.3rem;
+      }
+      li {
+        margin: 0.35em 0;
+      }
+      code {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.1em 0.35em;
+        font-size: 0.9em;
+      }
+      a {
+        color: var(--accent);
+      }
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.2rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>USB Boot Keyboard</h1>
+      <p class="lead">
+        Turn an ESP32-S3 into a USB keyboard that Home Assistant can type on —
+        built as a single-interface boot keyboard, the one shape cheap KVM
+        hotkey sniffers actually recognise.
+      </p>
+
+      <div class="install">
+        <esp-web-install-button manifest="manifest.json">
+          <span slot="unsupported" class="unsupported">
+            Your browser can't flash devices. Use desktop Chrome or Edge —
+            Web Serial isn't available in Safari, Firefox, or on mobile.
+          </span>
+          <span slot="not-allowed" class="unsupported">
+            This page has to be served over HTTPS to flash a device.
+          </span>
+        </esp-web-install-button>
+      </div>
+
+      <h2>Before you plug it in</h2>
+      <p>
+        The USB port becomes the keyboard, so the board does not offer a serial
+        console once the firmware runs. To flash it you must enter the ROM
+        bootloader by hand:
+      </p>
+      <ol>
+        <li>Unplug the board.</li>
+        <li>Hold the <strong>BOOT</strong> button down.</li>
+        <li>Plug the USB cable in, then release BOOT.</li>
+        <li>Press Connect above and pick the serial port that appears.</li>
+      </ol>
+
+      <h2>After flashing</h2>
+      <ol>
+        <li>
+          The board starts a Wi-Fi access point. Join it and the captive portal
+          will ask for your network.
+        </li>
+        <li>
+          It then appears in Home Assistant under
+          <strong>Settings → Devices &amp; services</strong> as an ESPHome
+          device.
+        </li>
+        <li>
+          Later updates go over the air from ESPHome — no BOOT button, no cable.
+        </li>
+      </ol>
+      <p>
+        Improv over serial is not offered on purpose: the serial port is the
+        keyboard, so Wi-Fi setup has to go through the captive portal.
+      </p>
+
+      <h2>Building your own keystrokes</h2>
+      <p>
+        This prebuilt image ships the example configuration (four KVM port
+        buttons, an editable keystroke, and a target selector). To send your own
+        keys, add the component to your own ESPHome config:
+      </p>
+      <p><code>github://diydoohickeys/esphome-usb-boot-keyboard</code></p>
+
+      <footer>
+        Source, documentation and the full keystroke syntax:
+        <a href="https://github.com/diydoohickeys/esphome-usb-boot-keyboard"
+          >github.com/diydoohickeys/esphome-usb-boot-keyboard</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

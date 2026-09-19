@@ -1,0 +1,121 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# ESPHome is pinned: this component reaches into esp32 codegen helpers and the
+# automation API, both of which move between releases. Bump it deliberately,
+# never with a range.
+env:
+  ESPHOME_VERSION: "2026.9.0"
+  BUILD_NAME: usb-boot-keyboard-ci
+  EXPECTED_FLASH_SIZE: "4MB"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO and pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ env.ESPHOME_VERSION }}-${{ hashFiles('example/ci.yaml') }}
+          restore-keys: pio-${{ env.ESPHOME_VERSION }}-
+
+      - name: Install ESPHome
+        run: pip install "esphome==${ESPHOME_VERSION}"
+
+      - name: Validate
+        run: esphome config example/ci.yaml
+
+      - name: Compile
+        run: esphome compile example/ci.yaml
+
+      - name: Collect and verify the images
+        run: |
+          set -euo pipefail
+          BUILD_DIR=".esphome/build/${BUILD_NAME}/.pioenvs/${BUILD_NAME}"
+          mkdir -p dist
+          cp "${BUILD_DIR}/firmware.factory.bin" dist/firmware-merged.bin
+          cp "${BUILD_DIR}/firmware.bin" dist/firmware.bin
+          python3 .github/scripts/check_flash_size.py dist/firmware-merged.bin "${EXPECTED_FLASH_SIZE}"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/firmware-merged.bin
+            dist/firmware.bin
+          generate_release_notes: true
+
+  pages:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: dist
+
+      # The .bin is served FROM the Pages site. Release asset URLs send no CORS
+      # headers, so ESP Web Tools cannot fetch them cross-origin.
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          cp dist/firmware-merged.bin site/
+          python3 - "${GITHUB_REF_NAME}" <<'PY'
+          import json, sys
+          path = "site/manifest.json"
+          manifest = json.load(open(path))
+          manifest["version"] = sys.argv[1].lstrip("v")
+          json.dump(manifest, open(path, "w"), indent=2)
+          PY
+          cat site/manifest.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
