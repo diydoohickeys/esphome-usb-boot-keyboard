@@ -110,8 +110,6 @@ class UsbBootKeyboard : public Component {
   CallbackManager<void()> unmount_callbacks_;
 };
 
-extern UsbBootKeyboard *global_usb_boot_keyboard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 }  // namespace esphome::usb_boot_keyboard
 
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4

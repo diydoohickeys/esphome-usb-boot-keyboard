@@ -9,12 +9,12 @@
 #include "tinyusb_default_config.h"
 #include "tusb.h"
 
+// Defined at global scope below; setup() installs it as the TinyUSB event hook.
+extern "C" void usb_boot_keyboard_event_cb(tinyusb_event_t *event, void *arg);
+
 namespace esphome::usb_boot_keyboard {
 
 static const char *const TAG = "usb_boot_keyboard";
-
-UsbBootKeyboard *global_usb_boot_keyboard =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    nullptr;
 
 // ---------------------------------------------------------------------------
 // Descriptors. TUD_HID_REPORT_DESC_KEYBOARD() with no argument emits no
@@ -74,8 +74,6 @@ void kb_worker_task(void *arg) {
 
 // ---------------------------------------------------------------------------
 void UsbBootKeyboard::setup() {
-  global_usb_boot_keyboard = this;
-
   if (this->serial_ == nullptr) {
     static std::string mac = get_mac_address();
     this->serial_ = mac.c_str();
@@ -101,6 +99,8 @@ void UsbBootKeyboard::setup() {
   tusb_cfg.descriptor.string = s_string_descriptor;
   tusb_cfg.descriptor.string_count = sizeof(s_string_descriptor) / sizeof(s_string_descriptor[0]);
   tusb_cfg.descriptor.full_speed_config = CONFIG_DESCRIPTOR;
+  tusb_cfg.event_cb = usb_boot_keyboard_event_cb;
+  tusb_cfg.event_arg = this;
 
   esp_err_t err = tinyusb_driver_install(&tusb_cfg);
   if (err != ESP_OK) {
@@ -315,14 +315,22 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
   (void) bufsize;
 }
 
-void tud_mount_cb(void) {
-  if (esphome::usb_boot_keyboard::global_usb_boot_keyboard != nullptr)
-    esphome::usb_boot_keyboard::global_usb_boot_keyboard->on_bus_state_change(true);
-}
-
-void tud_umount_cb(void) {
-  if (esphome::usb_boot_keyboard::global_usb_boot_keyboard != nullptr)
-    esphome::usb_boot_keyboard::global_usb_boot_keyboard->on_bus_state_change(false);
+// esp_tinyusb defines tud_mount_cb/tud_umount_cb itself, and not weakly, so
+// defining them here is a link error. Its own event callback is the hook.
+void usb_boot_keyboard_event_cb(tinyusb_event_t *event, void *arg) {
+  auto *keyboard = static_cast<esphome::usb_boot_keyboard::UsbBootKeyboard *>(arg);
+  if (event == nullptr || keyboard == nullptr)
+    return;
+  switch (event->id) {
+    case TINYUSB_EVENT_ATTACHED:
+      keyboard->on_bus_state_change(true);
+      break;
+    case TINYUSB_EVENT_DETACHED:
+      keyboard->on_bus_state_change(false);
+      break;
+    default:
+      break;  // suspend/resume are Kconfig-gated and not of interest here
+  }
 }
 
 }  // extern "C"
