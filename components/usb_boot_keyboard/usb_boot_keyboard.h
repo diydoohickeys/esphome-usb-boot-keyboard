@@ -5,7 +5,12 @@
 #include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+
+#ifdef USE_OTA
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -44,7 +49,12 @@ void kb_worker_task(void *arg);
 // why the component conflicts with tinyusb/usb_cdc_acm/usb_host, and why there
 // are no consumer-control ("media") keys: they need a second report, which forces
 // report IDs, which breaks the sniffer.
-class UsbBootKeyboard : public Component {
+class UsbBootKeyboard : public Component
+#if defined(USE_OTA) && defined(USE_OTA_STATE_LISTENER)
+    ,
+                        public ota::OTAGlobalStateListener
+#endif
+{
  public:
   void setup() override;
   void loop() override;
@@ -81,6 +91,11 @@ class UsbBootKeyboard : public Component {
   // code runs here.
   void on_bus_state_change(bool mounted);
 
+#if defined(USE_OTA) && defined(USE_OTA_STATE_LISTENER)
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                           ota::OTAComponent *component) override;
+#endif
+
  protected:
   friend void kb_worker_task(void *arg);
 
@@ -108,6 +123,11 @@ class UsbBootKeyboard : public Component {
 
   CallbackManager<void()> mount_callbacks_;
   CallbackManager<void()> unmount_callbacks_;
+
+#if defined(USE_OTA) && defined(USE_OTA_STATE_LISTENER)
+  bool ota_detached_{false};
+  uint32_t ota_activity_ms_{0};
+#endif
 };
 
 }  // namespace esphome::usb_boot_keyboard

@@ -2,6 +2,7 @@
 
 #include "usb_boot_keyboard.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include "freertos/task.h"
@@ -15,6 +16,12 @@ extern "C" void usb_boot_keyboard_event_cb(tinyusb_event_t *event, void *arg);
 namespace esphome::usb_boot_keyboard {
 
 static const char *const TAG = "usb_boot_keyboard";
+
+#if defined(USE_OTA) && defined(USE_OTA_STATE_LISTENER)
+// If an update goes quiet for this long, put the keyboard back on the bus
+// rather than leave it dead until someone power-cycles the board.
+static constexpr uint32_t OTA_DETACH_TIMEOUT_MS = 60000;
+#endif
 
 // ---------------------------------------------------------------------------
 // Descriptors. TUD_HID_REPORT_DESC_KEYBOARD() with no argument emits no
@@ -112,25 +119,75 @@ void UsbBootKeyboard::setup() {
   if (xTaskCreate(kb_worker_task, "usb_boot_kb", 4096, this, 5, nullptr) != pdPASS) {
     ESP_LOGE(TAG, "Worker task creation failed");
     this->mark_failed();
+    return;
   }
+
+#if defined(USE_OTA) && defined(USE_OTA_STATE_LISTENER)
+  ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
 }
 
 void UsbBootKeyboard::loop() {
-  if (this->mounted_ == this->reported_mounted_) {
-    // Nothing to dispatch. on_bus_state_change() wakes us again.
-    this->disable_loop();
-    return;
+  if (this->mounted_ != this->reported_mounted_) {
+    this->reported_mounted_ = this->mounted_;
+    if (this->reported_mounted_) {
+      ESP_LOGI(TAG, "USB host attached");
+      this->mount_callbacks_.call();
+    } else {
+      ESP_LOGI(TAG, "USB host detached");
+      this->release_all();
+      this->unmount_callbacks_.call();
+    }
   }
-  this->reported_mounted_ = this->mounted_;
-  if (this->reported_mounted_) {
-    ESP_LOGI(TAG, "USB host attached");
-    this->mount_callbacks_.call();
-  } else {
-    ESP_LOGI(TAG, "USB host detached");
-    this->release_all();
-    this->unmount_callbacks_.call();
+
+#if defined(USE_OTA) && defined(USE_OTA_STATE_LISTENER)
+  if (this->ota_detached_) {
+    if (millis() - this->ota_activity_ms_ > OTA_DETACH_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Update went quiet, reattaching to USB");
+      this->ota_detached_ = false;
+      tud_connect();
+    }
+    return;  // stay awake while off the bus
+  }
+#endif
+
+  // Nothing to dispatch. on_bus_state_change() wakes us again.
+  this->disable_loop();
+}
+
+#if defined(USE_OTA) && defined(USE_OTA_STATE_LISTENER)
+void UsbBootKeyboard::on_ota_global_state(ota::OTAState state, float /*progress*/, uint8_t /*error*/,
+                                          ota::OTAComponent * /*component*/) {
+  switch (state) {
+    case ota::OTA_STARTED:
+      // Writing flash stalls the instruction cache, and the USB interrupt
+      // cannot be serviced through that stall. A host that polls hard — a KVM's
+      // HID emulation does — keeps retrying into the gap, and the update
+      // crawls or never finishes. Leaving the bus removes the contention for
+      // the duration; a successful update re-enumerates us on its reboot.
+      ESP_LOGI(TAG, "Update started, detaching from USB");
+      this->ota_detached_ = true;
+      this->ota_activity_ms_ = millis();
+      tud_disconnect();
+      this->enable_loop();
+      break;
+
+    case ota::OTA_IN_PROGRESS:
+      this->ota_activity_ms_ = millis();
+      break;
+
+    case ota::OTA_ERROR:
+    case ota::OTA_ABORT:
+      ESP_LOGI(TAG, "Update did not complete, reattaching to USB");
+      this->ota_detached_ = false;
+      tud_connect();
+      break;
+
+    default:
+      break;  // a completed update reboots, and the reboot re-enumerates us
   }
 }
+#endif
 
 void UsbBootKeyboard::dump_config() {
   ESP_LOGCONFIG(TAG,

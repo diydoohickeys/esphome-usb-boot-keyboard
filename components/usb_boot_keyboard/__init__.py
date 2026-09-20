@@ -1,7 +1,7 @@
 from esphome import automation
 from esphome import final_validate as fv
 import esphome.codegen as cg
-from esphome.components import esp32
+from esphome.components import esp32, ota
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
@@ -126,6 +126,10 @@ async def to_code(config: ConfigType) -> None:
     for conf in config.get(CONF_ON_UNMOUNT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
+
+    # Lets the component take the device off the USB bus while an update is
+    # running; no-op when the config has no `ota:`.
+    ota.request_ota_state_listeners()
 
     add_idf_component(name="espressif/esp_tinyusb", ref="2.2.1")
 

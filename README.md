@@ -78,6 +78,14 @@ logger:
 To flash over USB, hold the **BOOT** button while plugging the board in. After
 the first flash, updates go over the air.
 
+**The component takes the device off the USB bus while an update runs.** Writing
+flash stalls the instruction cache, and the USB interrupt cannot be serviced
+through that stall; a host that polls hard — a KVM's HID emulation does — keeps
+retrying into the gap and the update crawls or never finishes. So the keyboard
+disappears from the host for the duration and comes back on the reboot that
+ends a successful update. If an update dies partway, the keyboard is put back on
+the bus, and a stalled one is recovered after 60 seconds without progress.
+
 ## Configuration
 
 ```yaml
