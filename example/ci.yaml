@@ -27,6 +27,17 @@ logger:
 api:
   encryption:
     key: "ZXNwaG9tZS1jaS1rZXktMzItYnl0ZXMtZXhhY3RseSE="
+  actions:
+    - action: send_keystroke
+      variables:
+        keys: string
+      then:
+        - usb_boot_keyboard.send: !lambda "return keys;"
+    - action: type_text
+      variables:
+        message: string
+      then:
+        - usb_boot_keyboard.type: !lambda "return message;"
 
 ota:
   - platform: esphome

@@ -201,6 +201,32 @@ Type a new keystroke into the text entity in Home Assistant and the next press
 sends it. `example/usb-boot-keyboard.yaml` shows this alongside fixed buttons
 and a templated `select`.
 
+### From an automation
+
+For automations and scripts, expose an API action rather than driving the text
+entity — that would be two service calls and a race:
+
+```yaml
+api:
+  actions:
+    - action: send_keystroke
+      variables:
+        keys: string
+      then:
+        - usb_boot_keyboard.send: !lambda "return keys;"
+```
+
+```yaml
+# ...then in any Home Assistant automation
+actions:
+  - action: esphome.my_device_send_keystroke
+    data:
+      keys: "ctrl;ctrl;3"
+```
+
+`text` is a reserved variable name in an API action, so a "type this string"
+action needs to call its variable something else — the example uses `message`.
+
 ## Why not an upstream component?
 
 ESPHome's `tinyusb` component is a foundation: it configures `esp_tinyusb`

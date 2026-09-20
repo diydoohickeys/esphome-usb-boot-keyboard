@@ -37,6 +37,23 @@ logger:
 api:
   encryption:
     key: !secret api_encryption_key
+  # Callable from any Home Assistant automation or script as
+  # `esphome.<device_name>_send_keystroke`, with any sequence you like. This is
+  # the route for automations — setting the text entity below and then pressing
+  # a button is two calls and a race.
+  #
+  # NOTE: `text` is a reserved variable name here; hence `message`.
+  actions:
+    - action: send_keystroke
+      variables:
+        keys: string
+      then:
+        - usb_boot_keyboard.send: !lambda "return keys;"
+    - action: type_text
+      variables:
+        message: string
+      then:
+        - usb_boot_keyboard.type: !lambda "return message;"
 
 # Uploads are authenticated with the API encryption key above; an OTA password
 # would cost flash and RAM for no extra protection.
