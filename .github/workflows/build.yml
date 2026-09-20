@@ -74,53 +74,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: firmware
-          path: dist
+      # Source-only release: no firmware is published. A prebuilt image would
+      # have to carry a baked API key, and this device injects keystrokes into
+      # whatever it is plugged into. Users compile their own with their own key.
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/firmware-merged.bin
-            dist/firmware-ota.bin
           generate_release_notes: true
 
-  pages:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: firmware
-          path: dist
-
-      # The .bin is served FROM the Pages site. Release asset URLs send no CORS
-      # headers, so ESP Web Tools cannot fetch them cross-origin.
-      - name: Assemble the site
-        run: |
-          set -euo pipefail
-          cp dist/firmware-merged.bin site/
-          python3 - "${GITHUB_REF_NAME}" <<'PY'
-          import json, sys
-          path = "site/manifest.json"
-          manifest = json.load(open(path))
-          manifest["version"] = sys.argv[1].lstrip("v")
-          json.dump(manifest, open(path, "w"), indent=2)
-          PY
-          cat site/manifest.json
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-      - id: deploy
-        uses: actions/deploy-pages@v4

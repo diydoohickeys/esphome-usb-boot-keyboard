@@ -201,12 +201,6 @@ Type a new keystroke into the text entity in Home Assistant and the next press
 sends it. `example/usb-boot-keyboard.yaml` shows this alongside fixed buttons
 and a templated `select`.
 
-## Prebuilt firmware
-
-A ready-made image of the example configuration can be flashed from the browser
-(desktop Chrome or Edge — Web Serial is not available elsewhere). Remember to
-hold **BOOT** while plugging the board in.
-
 ## Why not an upstream component?
 
 ESPHome's `tinyusb` component is a foundation: it configures `esp_tinyusb`
@@ -227,6 +221,6 @@ with a boot-only option, this component becomes unnecessary.
 The component source is MIT — see [LICENSE](LICENSE).
 
 A **compiled image** is another matter: ESPHome's C++ runtime is GPL-3.0, so any
-firmware binary built from this (including the prebuilt one above) is a GPL-3.0
+firmware binary built from this is a GPL-3.0
 work. This repository, plus the ESPHome sources it is built against, is the
 corresponding source. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

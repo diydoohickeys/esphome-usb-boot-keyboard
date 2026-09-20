@@ -7,9 +7,9 @@ and ESPHome's runtime is GPL-3.0.
 ## Compiled images are GPL-3.0
 
 ESPHome's C++ runtime (`esphome/core`, and every component linked into a build)
-is licensed **GPL-3.0**. Any firmware binary produced from this component —
-including the prebuilt image published on the releases page and the web
-flasher — is therefore a GPL-3.0 work, and is distributed under those terms.
+is licensed **GPL-3.0**. Any firmware binary produced from this component is
+therefore a GPL-3.0 work. No firmware binary is published here — releases are
+source only — but this notice applies to any image you build and pass on.
 
 The corresponding source is this repository together with the ESPHome release
 pinned in `.github/workflows/build.yml`.
