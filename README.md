@@ -78,13 +78,29 @@ logger:
 To flash over USB, hold the **BOOT** button while plugging the board in. After
 the first flash, updates go over the air.
 
-**The component takes the device off the USB bus while an update runs.** Writing
-flash stalls the instruction cache, and the USB interrupt cannot be serviced
-through that stall; a host that polls hard — a KVM's HID emulation does — keeps
-retrying into the gap and the update crawls or never finishes. So the keyboard
-disappears from the host for the duration and comes back on the reboot that
-ends a successful update. If an update dies partway, the keyboard is put back on
-the bus, and a stalled one is recovered after 60 seconds without progress.
+### If an update stalls
+
+Over-the-air updates need sustained throughput, unlike everything else the
+device does — the API stays connected on a link that cannot carry an update at
+all. So an update that crawls or stops partway is almost always the WiFi, not
+the USB host, even when the same board updates fine somewhere else on the desk.
+Measured on a board behind steel rack plates: updates stalled at a different
+percentage every time, while the device stayed online in Home Assistant
+throughout. Moving it clear of the metal fixed it.
+
+Check the signal before suspecting anything else:
+
+```yaml
+sensor:
+  - platform: wifi_signal
+    name: "WiFi signal"
+    entity_category: diagnostic
+
+wifi:
+  # ESP32 defaults to 'light', which parks the radio between beacons. On a
+  # marginal link that is the difference between usable and not.
+  power_save_mode: none
+```
 
 ## Configuration
 
