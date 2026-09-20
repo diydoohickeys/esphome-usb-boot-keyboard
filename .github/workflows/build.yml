@@ -28,14 +28,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Cache PlatformIO and pip
+      # ESPHome manages ESP-IDF itself under ~/.cache/esphome (frameworks, tools,
+      # python envs). There is no PlatformIO in this build at all.
+      - name: Cache the ESP-IDF toolchain and pip
         uses: actions/cache@v4
         with:
           path: |
-            ~/.platformio
+            ~/.cache/esphome
             ~/.cache/pip
-          key: pio-${{ env.ESPHOME_VERSION }}-${{ hashFiles('example/ci.yaml') }}
-          restore-keys: pio-${{ env.ESPHOME_VERSION }}-
+          key: esphome-${{ env.ESPHOME_VERSION }}-${{ hashFiles('example/ci.yaml') }}
+          restore-keys: esphome-${{ env.ESPHOME_VERSION }}-
 
       - name: Install ESPHome
         run: pip install "esphome==${ESPHOME_VERSION}"
@@ -49,10 +51,13 @@ jobs:
       - name: Collect and verify the images
         run: |
           set -euo pipefail
-          BUILD_DIR=".esphome/build/${BUILD_NAME}/.pioenvs/${BUILD_NAME}"
+          # The native-IDF build writes here, next to the config it built.
+          # (.pioenvs was the old PlatformIO layout and no longer exists.)
+          BUILD_DIR="example/.esphome/build/${BUILD_NAME}/build"
+          ls -l "${BUILD_DIR}"/firmware.*.bin
           mkdir -p dist
           cp "${BUILD_DIR}/firmware.factory.bin" dist/firmware-merged.bin
-          cp "${BUILD_DIR}/firmware.bin" dist/firmware.bin
+          cp "${BUILD_DIR}/firmware.ota.bin" dist/firmware-ota.bin
           python3 .github/scripts/check_flash_size.py dist/firmware-merged.bin "${EXPECTED_FLASH_SIZE}"
           ls -l dist
 
@@ -77,7 +82,7 @@ jobs:
         with:
           files: |
             dist/firmware-merged.bin
-            dist/firmware.bin
+            dist/firmware-ota.bin
           generate_release_notes: true
 
   pages:
